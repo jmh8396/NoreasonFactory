@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/nav_favorite"
+        android:icon="@drawable/ic_favorite"
+        android:title="즐겨찾는 식당"
+        />
+    <item
+        android:id="@+id/nav_criterion"
+        android:icon="@drawable/ic_criterion"
+        android:title="아토프리식당 선정기준"
+        />
+    <item
+        android:id="@+id/nav_proposal"
+        android:icon="@drawable/ic_proposal"
+        android:title="아토프리식당 등록신청"
+        />
+    <item
+        android:id="@+id/nav_group"
+        android:icon="@drawable/ic_group"
+        android:title="아토피안 모임안내"
+        />
+    <item
+        android:id="@+id/nav_info"
+        android:icon="@drawable/ic_info"
+        android:title="앱 정보"
+        />
+
+</menu>
