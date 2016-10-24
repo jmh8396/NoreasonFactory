@@ -25,6 +25,12 @@ import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import com.android.volley.Request;
+import com.android.volley.RequestQueue;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.JsonObjectRequest;
+import com.example.gwpark.shit.DB.MyVolley;
 import com.example.gwpark.shit.Data.Place;
 
 import net.daum.mf.map.api.CalloutBalloonAdapter;
@@ -32,13 +38,21 @@ import net.daum.mf.map.api.MapPOIItem;
 import net.daum.mf.map.api.MapPoint;
 import net.daum.mf.map.api.MapView;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLConnection;
 import java.util.ArrayList;
+import java.util.HashMap;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -56,6 +70,7 @@ public class MainActivity extends AppCompatActivity
     @BindView(R.id.vpfragment) View vpFragment;
 
     public static ArrayList<Place> places;
+    JSONObject jsonObject;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -97,7 +112,29 @@ public class MainActivity extends AppCompatActivity
             }
         });
 
-        downloadDB();
+        loadDB();
+
+        HashMap<String, String> params = new HashMap<String, String>();
+        params.put("test","1234");
+        JSONObject object = new JSONObject(params);
+
+        RequestQueue queue = MyVolley.getInstance(getApplicationContext()).getRequestQueue();
+        JsonObjectRequest req = new JsonObjectRequest(Request.Method.POST,
+                "http://ec2-52-78-204-54.ap-northeast-2.compute.amazonaws.com/test.php",
+                object,
+                new Response.Listener<JSONObject>() {
+                    @Override
+                    public void onResponse(JSONObject response) {
+                        Log.d("test", response.toString());
+                    }
+                },
+                new Response.ErrorListener() {
+                    @Override
+                    public void onErrorResponse(VolleyError error) {
+                        Log.d("test", error.getMessage());
+                    }
+                });
+        queue.add(req);
     }
 
     @Override
@@ -356,87 +393,56 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    private void downloadDB() {
-        // DB를 download하기 위한 Thread를 만든다
+    private void loadDB() {
+
         Thread thread = new Thread(new Runnable() {
             @Override
             public void run() {
-                try {
-                    // URL에 연결한다
-                    URL url = new URL("http://ec2-52-78-183-64.ap-northeast-2.compute.amazonaws.com:80/atofree.db");
-                    URLConnection conn = url.openConnection();
 
-                    InputStream is = conn.getInputStream();
+                RequestQueue queue = MyVolley.getInstance(getApplicationContext()).getRequestQueue();
+                JsonObjectRequest myReq = new JsonObjectRequest(Request.Method.GET,
+                        "http://ec2-52-78-204-54.ap-northeast-2.compute.amazonaws.com/get_place.php",
+                        new JSONObject(),
+                        new Response.Listener<JSONObject>() {
+                            @Override
+                            public void onResponse(JSONObject response) {
+                                try {
+                                    JSONArray array = response.getJSONArray("place");
 
-                    // Internal data 폴더가 없으면 생성한다
-                    File dir = new File(Environment.getDataDirectory().getAbsolutePath() + "/data/" + getPackageName());
-                    if (!dir.exists()) {
-                        dir.mkdir();
-                    }
+                                    places = new ArrayList<Place>();
+                                    for (int i=0;i<array.length();i++) {
+                                        JSONObject object = array.getJSONObject(i);
+                                        places.add(new Place(object.getString("pid"), object.getString("name"), object.getString("location"), object.getString("tel"), object.getString("hasReview"), object.getString("hasPhoto"), object.getString("time"), object.getString("address")));
+                                    }
 
-                    // Internal data 폴더에 파일 이름까지 쓰고 파일이 있으면 지우고 생성한다
-                    File target = new File(Environment.getDataDirectory().getAbsolutePath() + "/data/" + getPackageName() + "/atofree.db");
-                    if (target.exists()) {
-                        target.delete();
-                    }
-                    target.createNewFile();
+                                    for (int i=0;i<places.size();i++) {
+                                        MapPOIItem marker = new MapPOIItem();
+                                        marker.setItemName(places.get(i).name);
+                                        marker.setTag(Integer.parseInt(places.get(i).pid));
 
-                    // File을 쓰기 위한 Stream
-                    FileOutputStream fos = new FileOutputStream(target);
-                    BufferedOutputStream bos = new BufferedOutputStream(fos);
-                    int bufferLength = 0;
-                    int totalLength = 0;
+                                        String[] sp = places.get(i).location.split(",");
+                                        MapPoint mp = MapPoint.mapPointWithGeoCoord(Float.parseFloat(sp[0]), Float.parseFloat(sp[1]));
 
-                    // buffer를 설정하고 InputStream에서 불러와 파일에 저장한다
-                    byte[] buffer = new byte[1024];
-                    while((bufferLength = is.read(buffer)) > 0) {
-                        bos.write(buffer, 0, bufferLength);
-                        bos.flush();
-                        totalLength += bufferLength;
-                    }
+                                        marker.setMapPoint(mp);
+                                        marker.setMarkerType(MapPOIItem.MarkerType.BluePin); // 기본으로 제공하는 BluePin 마커 모양.
+                                        marker.setSelectedMarkerType(MapPOIItem.MarkerType.RedPin); // 마커를 클릭했을때, 기본으로 제공하는 RedPin 마커 모양.
 
-                    bos.close();
-                    fos.close();
-                    is.close();
-
-                    // 파일을 저장한 후 Internal Data의 DB를 불러온다
-                    loadDB();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+                                        mMapView.addPOIItem(marker);
+                                    }
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                        },
+                        new Response.ErrorListener() {
+                            @Override
+                            public void onErrorResponse(VolleyError error) {
+                                Log.d("test", error.toString());
+                            }
+                        });
+                queue.add(myReq);
             }
         });
-        thread.start(); // Thread 작동 시작
-    }
-
-    private void loadDB() {
-        // Internal data에 있는 DB를 불러오고 쿼리를 날린다
-        SQLiteDatabase db = SQLiteDatabase.openDatabase(Environment.getDataDirectory().getAbsolutePath() + "/data/" + getPackageName() + "/atofree.db", null, SQLiteDatabase.OPEN_READONLY | SQLiteDatabase.NO_LOCALIZED_COLLATORS);
-        Cursor cursor = db.rawQuery("select * from place", null);
-
-        // 받아온 Data를 DataSet에 추가한다
-        places = new ArrayList<>();
-        while (cursor.moveToNext()) {
-            places.add(new Place(cursor.getString(0), cursor.getString(1), cursor.getString(2), cursor.getString(3), cursor.getString(4), cursor.getString(5)));
-        }
-
-        for (int i=0;i<places.size();i++) {
-            MapPOIItem marker = new MapPOIItem();
-            marker.setItemName(places.get(i).name);
-            marker.setTag(Integer.parseInt(places.get(i).pid));
-
-            String[] sp = places.get(i).location.split(",");
-            Log.d("test", sp[0]+", "+sp[1]);
-            MapPoint mp = MapPoint.mapPointWithGeoCoord(Float.parseFloat(sp[0]), Float.parseFloat(sp[1]));
-
-            marker.setMapPoint(mp);
-            marker.setMarkerType(MapPOIItem.MarkerType.BluePin); // 기본으로 제공하는 BluePin 마커 모양.
-            marker.setSelectedMarkerType(MapPOIItem.MarkerType.RedPin); // 마커를 클릭했을때, 기본으로 제공하는 RedPin 마커 모양.
-
-            mMapView.addPOIItem(marker);
-        }
-
-        cursor.close();
-        db.close();
+        thread.start();
     }
 }

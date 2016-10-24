@@ -32,5 +32,6 @@ dependencies {
     compile "biz.laenger.android:vpbs:0.0.1-SNAPSHOT"
     compile files('libs/libDaumMapAndroid.jar')
     compile 'com.jakewharton:butterknife:8.2.1'
+    compile 'com.mcxiaoke.volley:library:1.0.18'
     apt 'com.jakewharton:butterknife-compiler:8.2.1'
 }

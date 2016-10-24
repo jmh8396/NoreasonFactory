@@ -35,8 +35,8 @@ public class InfoFragment extends Fragment {
     public void update(int tag) {
         Place p = MainActivity.places.get(tag-1);
         this.name.setText(p.name);
-        this.location.setText(p.location);
-        this.time.setText("시간");
+        this.location.setText(p.address);
+        this.time.setText(p.time);
         this.url.setText(p.tel);
     }
 }
